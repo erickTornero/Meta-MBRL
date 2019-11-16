@@ -1,5 +1,6 @@
 from mbrl.network import Dynamics
 import torch
+import torch.optim as optim
 import copy
 
 from IPython.core.debugger import set_trace
@@ -13,7 +14,7 @@ class MetaLearner:
         @N              :   Number of sampled tasks
     """
 
-    def __init__(self, dynamics_ml:Dynamics, M, K, N):
+    def __init__(self, dynamics_ml:Dynamics, M, K, N, lr):
         """ Save Dynamics initialization parameters """
         self.state_shape    =   dynamics_ml.state_shape
         self.action_shape   =   dynamics_ml.action_shape
@@ -27,13 +28,19 @@ class MetaLearner:
         self.M_points       =   M
         self.K_points       =   K
         self.N_tasks        =   N
+        """ Learning rate """
+        self.lr             =   lr
 
         self.dynamics_ML    =   dynamics_ml
-        self.ft_networks =   [dynamics_class((self.state_shape,), (self.action_shape,), self.stack_n, self.sthocastic, self.actfn, self.hlayers) for _ in range(self.N_tasks)]
-
+        """ Create N networks for fine tunning in N tasks"""
+        self.ft_networks    =   [dynamics_class((self.state_shape,), (self.action_shape,), self.stack_n, self.sthocastic, self.actfn, self.hlayers) for _ in range(self.N_tasks)]
+        """ Optimizers definition """
+        self.optimizers     =   [optim.Adam(params=ft_net.parameters(), lr=self.lr) for ft_net in self.ft_networks]
+        self.optimizer_ML   =   optim.Adam(params=self.dynamics_ML.parameters(), lr=self.lr)
     
     def _copy_from_ML(self):
         [ft_net.load_state_dict(copy.deepcopy(self.dynamics_ML.state_dict())) for ft_net in self.ft_networks]
+
 
 
 if __name__ == "__main__":
@@ -45,13 +52,14 @@ if __name__ == "__main__":
     sthocastic      =   False
     actfn           =   torch.tanh
     hlayers         =   [250,250,250]
+    lr              =   1e-4
 
     """ Meta learning parameters """
-    M, K, N         =   10,10,3
+    M, K, N         =   10, 10, 3
     set_trace()
     dynamics_ml     =   Dynamics(state_shape, action_shape, stack_n, sthocastic, actfn, hlayers)
 
-    mlearnerclass   =   MetaLearner(dynamics_ml, M, K, N)
+    mlearnerclass   =   MetaLearner(dynamics_ml, M, K, N, lr)
 
     mlearnerclass._copy_from_ML()
 
