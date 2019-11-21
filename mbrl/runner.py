@@ -15,41 +15,41 @@ class Runner:
         Collect Samples of quadrotor
     """
 
-    def __init__(self, vecenv, env, net, mpc:RandomShooter, max_path_len, total_nsteps):
-        self.vec_env    =   vecenv
-        self.env_   =   env
-        self.net    =   net
-        self.nstack =   net.stack_n
+    def __init__(self, vecenv, env_class, net, mpc:RandomShooter, max_path_len, total_nsteps):
+        self.vec_env        =   vecenv
+        self.env_class      =   env_class
+        self.net            =   net
+        self.nstack         =   net.stack_n
 
         self.max_path_len   =   max_path_len
         #self.total_samples  =   n_rollouts * nsteps
         self.total_samples  =   total_nsteps
 
-        self.n_parallel =   self.vec_env.n_parallel
+        self.n_parallel     =   self.vec_env.n_parallel
 
-        self.dProcesor       =   DataProcessor(0.99)
+        self.dProcesor      =   DataProcessor(0.99)
 
         #self.env_   =   self.vec_env.getenv
-        self.mpc    =   mpc
+        self.mpc            =   mpc
 
 
     def run(self, random=False):
         
         print('Collecting samples '+ ('Randomly' if random else 'with policy'))
-        paths       =   []
-        n_samples   =   0
-        running_paths = [_get_empty_running_paths_dict() for _ in range(self.n_parallel)]
+        paths           =   [[] for _ in range(self.n_parallel)]
+        n_samples       =   0
+        running_paths   =   [_get_empty_running_paths_dict() for _ in range(self.n_parallel)]
 
         # Reset environments
         #obses   =   np.asarray(self.vec_env.reset())
         obses   =   self.vec_env.reset()
-        stack_as    =   [StackStAct(self.env_.action_space.shape, self.env_.observation_space.shape, n=self.nstack, init_st=ob) for ob in obses]
+        stack_as    =   [StackStAct(self.env_class._get_action_space().shape, self.env_class._get_state_space().shape, n=self.nstack, init_st=ob) for ob in obses]
         
         # TQDM bar
         pbar    =   tqdm(total=self.total_samples)
         while n_samples < self.total_samples:
             if random:
-                actions =   np.stack([self.env_.action_space.sample() for _ in range(self.n_parallel)], axis=0)
+                actions =   np.stack([self.env_class._get_action_space().sample() for _ in range(self.n_parallel)], axis=0)
             else:
                 # Get next action given stat of actions and states
                 #obs_stack, act_stack = stack_as.get()
@@ -81,7 +81,7 @@ class Runner:
 
 
                 if len(running_paths[idx]['rewards']) >= self.max_path_len or done:
-                    paths.append(dict(
+                    paths[idx].append(dict(
                         observations=np.asarray(running_paths[idx]["observations"]),
                         actions=np.asarray(running_paths[idx]["actions"]),
                         rewards=np.asarray(running_paths[idx]["rewards"]),
@@ -106,9 +106,9 @@ class Runner:
             
             #[stack_.append(obs=next_ob) for next_ob, stack_ in zip(next_obs, stack_as)]
         pbar.close()
-        sampled_data = self.dProcesor.process(paths)
+        #sampled_data = self.dProcesor.process(paths)
 
-        return sampled_data
+        return paths
 
 
 

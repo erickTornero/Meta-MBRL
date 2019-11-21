@@ -17,7 +17,7 @@ import os
 import joblib
 import json
 
-from utils.plots import *
+#from utils.plots import *
 from utils.utility import *
 from IPython.core.debugger import set_trace
 
@@ -56,7 +56,7 @@ config  =   {
     
     "env_name"              :   'QuadrotorEnvAugment',
     "max_path_length"       :   250,
-    "total_tsteps_per_run"  :   10000,
+    "total_tsteps_per_run"  :   500,
     "reward_type"           :   'type5',
     "crippled_rotor"        :   [None, 1],
     "time_step_size"        :   0.050,  #seconds
@@ -65,13 +65,20 @@ config  =   {
     "batch_size"            :   500,
     "n_epochs"              :   100,
     "validation_percent"    :   0.2,
-    "learning_rate"         :   1e-4,
+    #"learning_rate"         :   1e-4,
 
     # Dynamics parameters #
     "sthocastic"            :   False,
     "hidden_layers"         :   (250,250,250),
     "activation_function"   :   'tanh',
-    "nstack"                :   2
+    "nstack"                :   2,
+
+    # Meta learner parameters #
+    "M_points"              :   16,
+    "K_points"              :   16,
+    "N_class"               :   2,
+    "inner_lr"              :   1e-4,
+    "outer_lr"              :   1e-4
 }
 """*****************************************
     Hyper-Parameters Settings
@@ -85,30 +92,33 @@ save_path               =   os.path.join('./data/', config['id_executor'])
     Objects for training
 ***************************
 """
-
+set_trace()
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 env_class   =   DecodeEnvironment(config['env_name'])
-env_ = env_class(port=32001, reward_type=config['reward_type'], fault_rotor=config['crippled_rotor']) # 28
+env_ = env_class(port=32001, reward_type=config['reward_type'], fault_rotor=None) # 28
 #vecenv=ParallelVrepEnv(ports=[25001,28001], max_path_length=250, envClass=QuadrotorEnv)
 vecenv=ParallelVrepEnv(ports=[30001, 31001], max_path_length=config['max_path_length'], envClass=env_class, reward_type=config['reward_type'], cripple_rotor_list=config['crippled_rotor'])
-state_shape         =   env_.observation_space.shape
-action_shape        =   env_.action_space.shape
+state_shape         =   env_class._get_state_space().shape
+action_shape        =   env_class._get_action_space().shape
 activation_function =   DecodeActFunction(config['activation_function'])
 
 dyn = Dynamics(state_shape, action_shape, stack_n=config['nstack'], sthocastic=config['sthocastic'], actfn=activation_function, hlayers=config['hidden_layers'])
 dyn = dyn.to(device)
 
-optimizer           =   optim.Adam(lr=config['learning_rate'], params=dyn.parameters())
+metalearner         =   MetaLearner(dyn, config['M_points'], config['K_points'], config['N_class'], config['inner_lr'], config['outer_lr'])
+
+#optimizer           =   optim.Adam(lr=config['learning_rate'], params=dyn.parameters())
 
 mpc_class           =   DecodeMPC(config['mpc'])
 mpc                 =   mpc_class(config['horizon'], config['candidates'], env_, dyn, device, config['discount'])
 
-trainer =   Trainer(dyn, config['batch_size'], config['n_epochs'], config['validation_percent'], config['learning_rate'], device, optimizer)
+#trainer =   Trainer(dyn, config['batch_size'], config['n_epochs'], config['validation_percent'], config['learning_rate'], device, optimizer)
+trainer =   Trainer_ML(metalearner, config['batch_size'], config['n_epochs'], config['validation_percent'], device)
 
 print('--------- Creation of runner--------')
 
-runner = Runner(vecenv, env_, dyn, mpc, config['max_path_length'], config['total_tsteps_per_run'])
+runner = Runner(vecenv, env_class, dyn, mpc, config['max_path_length'], config['total_tsteps_per_run'])
 
 
 assert not os.path.exists(save_path), 'Already this folder is busy, select other'
@@ -134,7 +144,7 @@ for n_it in range(1, config['n_iterations']+1):
     print('\t\t Iteration {} \t\t\t'.format(n_it))
     print('============================================')
     paths   =   runner.run(random=True) if n_it==1 else runner.run()
-    #set_trace()
+    set_trace()
     observations    =   paths['observations']
     actions         =   paths['actions']
     delta_obs       =   paths['delta_obs']

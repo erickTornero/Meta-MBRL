@@ -6,18 +6,19 @@ from itertools import count
 import random
 
 class Trainer_ML:
-    def __init__(self, meta_network, batch_sz, nepochs, split_ratio, inner_lr, outer_lr, device, M, K):
+    def __init__(self, meta_network, batch_sz, nepochs, split_ratio, device):
         self.meta_network   =   meta_network
         self.batch_size     =   batch_sz
         self.nepochs        =   nepochs
         self.split_ratio    =   split_ratio
-        self.inner_lr       =   inner_lr
-        self.outer_lr       =   outer_lr
+        #self.inner_lr       =   inner_lr
+        #self.outer_lr       =   outer_lr
         self.device         =   device
-        self.M_points       =   M
-        self.K_points       =   K
+        self.M_points       =   self.meta_network.M_points
+        self.K_points       =   self.meta_network.K_points
 
         self.optimizers     =   meta_network.optimizers
+        self.optimizer_ML   =   meta_network.optimizer_ML
         self.ft_networks    =   meta_network.ft_networks
         self.dynamics_ml    =   meta_network.dynamics_ML
     

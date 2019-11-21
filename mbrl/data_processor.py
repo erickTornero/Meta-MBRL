@@ -15,7 +15,7 @@ class DataProcessor:
         sample_data['observations'] =   np.vstack([path['observations'] for path in paths])
         sample_data['next_obs']     =   np.vstack([path['next_obs'] for path in paths])
         sample_data['actions']      =   np.vstack([path['actions'] for path in paths])
-        sample_data['delta_obs']      =   np.vstack([path['delta_obs'] for path in paths])
+        sample_data['delta_obs']    =   np.vstack([path['delta_obs'] for path in paths])
 
         sample_data['rewards']      =   self.reward_process([path['rewards'] for path in paths])
 
